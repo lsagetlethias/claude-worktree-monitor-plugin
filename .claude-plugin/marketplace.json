@@ -1,0 +1,25 @@
+{
+  "name": "worktree-monitor",
+  "owner": {
+    "name": "lsagetlethias"
+  },
+  "metadata": {
+    "description": "Git worktree monitor for Claude Code — status line, file guard hooks, and worktree management skills",
+    "version": "1.0.0"
+  },
+  "plugins": [
+    {
+      "name": "worktree-monitor",
+      "source": ".",
+      "description": "Status line, protection hooks, and skills for multi-worktree Claude Code sessions",
+      "version": "1.0.0",
+      "author": {
+        "name": "lsagetlethias"
+      },
+      "repository": "https://github.com/lsagetlethias/claude-worktree-monitor-plugin",
+      "license": "MIT",
+      "keywords": ["git", "worktree", "status-line", "hooks", "parallel-sessions"],
+      "category": "developer-tools"
+    }
+  ]
+}
