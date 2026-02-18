@@ -1,6 +1,6 @@
 {
   "name": "claude-worktree-monitor-plugin",
-  "version": "1.0.0",
+  "version": "1.0.1",
   "type": "module",
   "private": true,
   "scripts": {
@@ -9,6 +9,7 @@
     "test": "node --import tsx --test tests/*.test.ts"
   },
   "devDependencies": {
+    "@types/node": "^22.19.11",
     "esbuild": "^0.25.0",
     "tsx": "^4.19.0",
     "typescript": "^5.7.0"

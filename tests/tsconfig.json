@@ -6,10 +6,10 @@
     "strict": true,
     "esModuleInterop": true,
     "skipLibCheck": true,
-    "outDir": "dist",
-    "rootDir": "scripts",
+    "rootDir": "../",
     "declaration": false,
-    "sourceMap": false
+    "sourceMap": false,
+    "noEmit": true
   },
-  "include": [ "scripts/**/*.ts" ]
+  "include": [ "../scripts/**/*.ts", "./**/*.ts" ]
 }
