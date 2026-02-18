@@ -99,9 +99,16 @@ function renderModelWidget(input: StdinInput): string {
 }
 
 function renderContextWidget(input: StdinInput): string {
-  const pctText = colorize(pastelYellow, `${Math.round(input.context.percentage)}%`);
+  const ctx = input.context_window;
+  const usage = ctx.current_usage;
+  const usedTokens =
+    (usage.input_tokens ?? 0) +
+    (usage.output_tokens ?? 0) +
+    (usage.cache_creation_input_tokens ?? 0) +
+    (usage.cache_read_input_tokens ?? 0);
+  const pctText = colorize(pastelYellow, `${Math.round(ctx.used_percentage)}%`);
   const tokens = dim(
-    `${formatTokens(input.context.used_tokens)}/${formatTokens(input.context.total_tokens)}`
+    `${formatTokens(usedTokens)}/${formatTokens(ctx.context_window_size)}`
   );
   return `${pctText} ${tokens}`;
 }
@@ -124,8 +131,12 @@ function main(): void {
     for (const widgetId of config.widgets) {
       const renderer = WIDGET_RENDERERS[widgetId];
       if (!renderer) continue;
-      const result = renderer(input, wt);
-      if (result) parts.push(result);
+      try {
+        const result = renderer(input, wt);
+        if (result) parts.push(result);
+      } catch {
+        // Skip broken widget — don't kill the whole status line
+      }
     }
 
     if (parts.length > 0) {

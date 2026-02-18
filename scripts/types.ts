@@ -1,25 +1,35 @@
 /**
  * Schema for Claude Code status line stdin JSON.
- * Mirrors the full payload from Claude Code — fields like `cost` are present
- * in the stdin data but intentionally not rendered by any widget.
+ * Mirrors the actual payload from Claude Code.
  */
 export interface StdinInput {
   model: {
+    id: string;
     display_name: string;
-    api_name: string;
   };
-  context: {
-    used_tokens: number;
-    total_tokens: number;
-    percentage: number;
+  context_window: {
+    used_percentage: number;
+    remaining_percentage: number;
+    context_window_size: number;
+    current_usage: {
+      input_tokens: number;
+      output_tokens: number;
+      cache_creation_input_tokens?: number;
+      cache_read_input_tokens?: number;
+    };
   };
   cost: {
-    total_cost: number;
-    currency: string;
+    total_cost_usd: number;
+    total_duration_ms: number;
+    total_api_duration_ms: number;
   };
   workspace: {
     current_dir: string;
+    project_dir: string;
   };
+  session_id: string;
+  transcript_path: string;
+  version: string;
 }
 
 export type WidgetId = "worktree" | "model" | "context";

@@ -125,9 +125,12 @@ function renderModelWidget(input) {
   return `\u{1F916} ${colorize(pastelPurple, short)}`;
 }
 function renderContextWidget(input) {
-  const pctText = colorize(pastelYellow, `${Math.round(input.context.percentage)}%`);
+  const ctx = input.context_window;
+  const usage = ctx.current_usage;
+  const usedTokens = (usage.input_tokens ?? 0) + (usage.output_tokens ?? 0) + (usage.cache_creation_input_tokens ?? 0) + (usage.cache_read_input_tokens ?? 0);
+  const pctText = colorize(pastelYellow, `${Math.round(ctx.used_percentage)}%`);
   const tokens = dim(
-    `${formatTokens(input.context.used_tokens)}/${formatTokens(input.context.total_tokens)}`
+    `${formatTokens(usedTokens)}/${formatTokens(ctx.context_window_size)}`
   );
   return `${pctText} ${tokens}`;
 }
@@ -145,8 +148,11 @@ function main() {
     for (const widgetId of config.widgets) {
       const renderer = WIDGET_RENDERERS[widgetId];
       if (!renderer) continue;
-      const result = renderer(input, wt);
-      if (result) parts.push(result);
+      try {
+        const result = renderer(input, wt);
+        if (result) parts.push(result);
+      } catch {
+      }
     }
     if (parts.length > 0) {
       console.log(parts.join(SEPARATOR));

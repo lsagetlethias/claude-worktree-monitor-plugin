@@ -13,10 +13,18 @@ function runStatusLine(input: object): string {
 }
 
 const BASE_INPUT = {
-  model: { display_name: "Claude Opus 4.6", api_name: "claude-opus-4-6" },
-  context: { used_tokens: 80000, total_tokens: 200000, percentage: 40 },
-  cost: { total_cost: 1.25, currency: "USD" },
-  workspace: { current_dir: PLUGIN_ROOT },
+  model: { id: "claude-opus-4-6", display_name: "Claude Opus 4.6" },
+  context_window: {
+    used_percentage: 40,
+    remaining_percentage: 60,
+    context_window_size: 200000,
+    current_usage: { input_tokens: 70000, output_tokens: 10000, cache_creation_input_tokens: 0, cache_read_input_tokens: 0 },
+  },
+  cost: { total_cost_usd: 1.25, total_duration_ms: 45000, total_api_duration_ms: 2300 },
+  workspace: { current_dir: PLUGIN_ROOT, project_dir: PLUGIN_ROOT },
+  session_id: "test",
+  transcript_path: "/tmp/test",
+  version: "1.0.80",
 };
 
 describe("statusline output", () => {
@@ -53,13 +61,13 @@ describe("statusline output", () => {
   });
 
   it("handles Sonnet model", () => {
-    const input = { ...BASE_INPUT, model: { display_name: "Claude Sonnet 4.6", api_name: "claude-sonnet-4-6" } };
+    const input = { ...BASE_INPUT, model: { id: "claude-sonnet-4-6", display_name: "Claude Sonnet 4.6" } };
     const output = runStatusLine(input);
     assert.ok(output.includes("Sonnet 4.6"), `Expected 'Sonnet 4.6' in: ${output}`);
   });
 
   it("handles non-git workspace gracefully", () => {
-    const input = { ...BASE_INPUT, workspace: { current_dir: "/tmp" } };
+    const input = { ...BASE_INPUT, workspace: { current_dir: "/tmp", project_dir: "/tmp" } };
     const output = runStatusLine(input);
     // Should still have model and context, just no worktree widget
     assert.ok(output.includes("Opus 4.6"));
