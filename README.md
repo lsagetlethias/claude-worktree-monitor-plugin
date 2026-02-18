@@ -19,18 +19,27 @@ Plugin Claude Code pour le monitoring et la protection des git worktrees.
 
 ## Installation
 
+Dans une session Claude Code :
+
+```
+/plugin marketplace add lsagetlethias/claude-worktree-monitor-plugin
+/plugin install worktree-monitor
+```
+
+Puis lancer `/worktree-monitor:setup` pour configurer les hooks et la status line.
+
+### Installation manuelle
+
 ```bash
-# Cloner le plugin dans le dossier plugins locaux
 git clone https://github.com/lsagetlethias/claude-worktree-monitor-plugin.git \
   ~/.claude/plugins/local/worktree-monitor
 
-# Installer les dépendances et builder
 cd ~/.claude/plugins/local/worktree-monitor
 pnpm install
 pnpm build
 ```
 
-Puis lancer `/worktree-monitor:setup` dans une session Claude Code pour configurer les hooks et la status line.
+Puis lancer `/worktree-monitor:setup` dans une session Claude Code.
 
 ## Status line
 
