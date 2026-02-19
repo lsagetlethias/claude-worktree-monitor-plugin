@@ -24,8 +24,8 @@ function fg256(code, text) {
 function dim(text) {
   return `${ESC}2m${text}${RESET}`;
 }
-function bold(text) {
-  return `${ESC}1m${text}${RESET}`;
+function boldFg256(code, text) {
+  return `${ESC}1;38;5;${code}m${text}${RESET}`;
 }
 var pastelGreen = 114;
 var pastelCyan = 117;
@@ -116,13 +116,11 @@ function detectWorktree(cwd) {
     }
   }
   return {
-    root,
-    branch,
-    name: basename(root),
-    isWorktree
+    wt: { root, branch, name: basename(root), isWorktree },
+    worktreeListRaw
   };
 }
-function detectGitInfo(cwd, wt) {
+function detectGitInfo(cwd, wt, worktreeListRaw) {
   const { root, branch } = wt;
   let aheadBehind = null;
   const abRaw = git(["rev-list", "--left-right", "--count", "@{u}...HEAD"], cwd);
@@ -169,9 +167,8 @@ function detectGitInfo(cwd, wt) {
   }
   const tag = git(["describe", "--tags"], cwd) || null;
   const worktrees = [];
-  const wtListRaw = git(["worktree", "list", "--porcelain"], cwd);
-  if (wtListRaw) {
-    const entries = wtListRaw.split("\n\n").filter(Boolean);
+  if (worktreeListRaw) {
+    const entries = worktreeListRaw.split("\n\n").filter(Boolean);
     for (const entry of entries.slice(0, 5)) {
       const lines = entry.split("\n");
       const wtPath = lines[0]?.replace("worktree ", "") ?? "";
@@ -246,7 +243,7 @@ function renderGitBranchCommits(info) {
 }
 function renderGitState(info) {
   if (!info.state) return null;
-  return bold(colorize(pastelRed, `\u26A0\uFE0F ${info.state}`));
+  return boldFg256(pastelRed, `\u26A0\uFE0F ${info.state}`);
 }
 function renderGitTag(info) {
   if (!info.tag) return null;
@@ -289,11 +286,12 @@ function main() {
     const input = readStdin();
     const config = loadConfig();
     const cwd = input.workspace.current_dir;
-    const wt = detectWorktree(cwd);
-    const needsGitInfo = wt && config.widgets.some(
+    const detected = detectWorktree(cwd);
+    const wt = detected?.wt ?? null;
+    const needsGitInfo = detected && config.widgets.some(
       (w) => w.startsWith("git-") || w.startsWith("wt-")
     );
-    const gitInfo = needsGitInfo ? detectGitInfo(cwd, wt) : null;
+    const gitInfo = needsGitInfo ? detectGitInfo(cwd, detected.wt, detected.worktreeListRaw) : null;
     const parts = [];
     for (const widgetId of config.widgets) {
       const renderer = WIDGET_RENDERERS[widgetId];

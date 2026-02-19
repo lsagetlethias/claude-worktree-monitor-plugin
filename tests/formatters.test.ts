@@ -1,7 +1,7 @@
 import { describe, it } from "node:test";
 import assert from "node:assert/strict";
 
-import { formatDiffStat, formatRelativeTime, formatTokens, shortenModelName } from "../scripts/utils/formatters.js";
+import { formatRelativeTime, formatTokens, shortenModelName } from "../scripts/utils/formatters.js";
 
 describe("formatTokens", () => {
   it("formats small numbers as-is", () => {
@@ -58,13 +58,5 @@ describe("formatRelativeTime", () => {
 
   it("passes through unknown formats", () => {
     assert.equal(formatRelativeTime("just now"), "just now");
-  });
-});
-
-describe("formatDiffStat", () => {
-  it("formats additions and deletions", () => {
-    assert.equal(formatDiffStat(42, 17), "+42 -17");
-    assert.equal(formatDiffStat(0, 0), "+0 -0");
-    assert.equal(formatDiffStat(100, 0), "+100 -0");
   });
 });

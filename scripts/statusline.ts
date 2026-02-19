@@ -4,7 +4,7 @@ import { basename, join } from "node:path";
 
 import type { Config, GitInfo, StdinInput, WidgetId, WorktreeInfo } from "./types.js";
 import { DEFAULT_CONFIG } from "./types.js";
-import { bold, colorize, dim, pastelCyan, pastelGreen, pastelOrange, pastelPurple, pastelRed, pastelYellow } from "./utils/colors.js";
+import { boldFg256, colorize, dim, pastelCyan, pastelGreen, pastelOrange, pastelPurple, pastelRed, pastelYellow } from "./utils/colors.js";
 import { formatRelativeTime, formatTokens, shortenModelName } from "./utils/formatters.js";
 
 const CONFIG_PATH = process.env.WORKTREE_MONITOR_CONFIG ?? `${process.env.HOME}/.claude/worktree-monitor.json`;
@@ -57,7 +57,7 @@ function git(args: Array<string>, cwd: string): string {
   }
 }
 
-function detectWorktree(cwd: string): WorktreeInfo | null {
+function detectWorktree(cwd: string): { wt: WorktreeInfo; worktreeListRaw: string } | null {
   const root = git(["rev-parse", "--show-toplevel"], cwd);
   if (!root) return null;
 
@@ -77,16 +77,14 @@ function detectWorktree(cwd: string): WorktreeInfo | null {
   }
 
   return {
-    root,
-    branch,
-    name: basename(root),
-    isWorktree,
+    wt: { root, branch, name: basename(root), isWorktree },
+    worktreeListRaw,
   };
 }
 
 // --- git info detection ---
 
-function detectGitInfo(cwd: string, wt: WorktreeInfo): GitInfo | null {
+function detectGitInfo(cwd: string, wt: WorktreeInfo, worktreeListRaw: string): GitInfo | null {
   const { root, branch } = wt;
 
   // ahead/behind
@@ -151,11 +149,10 @@ function detectGitInfo(cwd: string, wt: WorktreeInfo): GitInfo | null {
   // tag
   const tag = git(["describe", "--tags"], cwd) || null;
 
-  // worktrees
+  // worktrees (reuse porcelain output from detectWorktree)
   const worktrees: GitInfo["worktrees"] = [];
-  const wtListRaw = git(["worktree", "list", "--porcelain"], cwd);
-  if (wtListRaw) {
-    const entries = wtListRaw.split("\n\n").filter(Boolean);
+  if (worktreeListRaw) {
+    const entries = worktreeListRaw.split("\n\n").filter(Boolean);
     for (const entry of entries.slice(0, 5)) {
       const lines = entry.split("\n");
       const wtPath = lines[0]?.replace("worktree ", "") ?? "";
@@ -249,7 +246,7 @@ function renderGitBranchCommits(info: GitInfo): string | null {
 
 function renderGitState(info: GitInfo): string | null {
   if (!info.state) return null;
-  return bold(colorize(pastelRed, `⚠️ ${info.state}`));
+  return boldFg256(pastelRed, `⚠️ ${info.state}`);
 }
 
 function renderGitTag(info: GitInfo): string | null {
@@ -302,13 +299,14 @@ function main(): void {
     const input = readStdin();
     const config = loadConfig();
     const cwd = input.workspace.current_dir;
-    const wt = detectWorktree(cwd);
+    const detected = detectWorktree(cwd);
+    const wt = detected?.wt ?? null;
 
     // Detect git info only if any git/wt widget is configured and we're in a git repo
-    const needsGitInfo = wt && config.widgets.some(
+    const needsGitInfo = detected && config.widgets.some(
       (w) => w.startsWith("git-") || w.startsWith("wt-")
     );
-    const gitInfo = needsGitInfo ? detectGitInfo(cwd, wt) : null;
+    const gitInfo = needsGitInfo ? detectGitInfo(cwd, detected.wt, detected.worktreeListRaw) : null;
 
     const parts: Array<string> = [];
     for (const widgetId of config.widgets) {

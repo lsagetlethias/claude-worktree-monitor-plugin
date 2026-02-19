@@ -7,12 +7,13 @@ import assert from "node:assert/strict";
 
 const PLUGIN_ROOT = new URL("..", import.meta.url).pathname.replace(/\/$/, "");
 const DIST = `${PLUGIN_ROOT}/dist/index.js`;
+let tmpCounter = 0;
 
 function runStatusLine(input: object, configOverride?: object): string {
   let env = "";
   let tmpConfigPath: string | null = null;
   if (configOverride) {
-    tmpConfigPath = join(tmpdir(), `wt-monitor-test-${Date.now()}.json`);
+    tmpConfigPath = join(tmpdir(), `wt-monitor-test-${process.pid}-${++tmpCounter}.json`);
     writeFileSync(tmpConfigPath, JSON.stringify(configOverride));
     env = `WORKTREE_MONITOR_CONFIG=${tmpConfigPath} `;
   }

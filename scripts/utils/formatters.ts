@@ -23,10 +23,6 @@ export function formatRelativeTime(crFormat: string): string {
     .replace(/\s+years?\s+ago/, "y ago");
 }
 
-/** Format diff stat: formatDiffStat(42, 17) → "+42 -17" */
-export function formatDiffStat(added: number, removed: number): string {
-  return `+${added} -${removed}`;
-}
 
 /** Shorten model display name: "Claude Opus 4.6" → "Opus 4.6" */
 export function shortenModelName(displayName: string): string {
