@@ -32,7 +32,21 @@ export interface StdinInput {
   version: string;
 }
 
-export type WidgetId = "worktree" | "model" | "context";
+export type WidgetId =
+  | "worktree"
+  | "model"
+  | "context"
+  | "git-ahead-behind"
+  | "git-dirty"
+  | "git-diff-stat"
+  | "git-stash"
+  | "git-last-commit"
+  | "git-branch-commits"
+  | "git-state"
+  | "git-tag"
+  | "wt-count"
+  | "wt-dirty"
+  | "wt-branches";
 
 export interface Config {
   hooks: {
@@ -48,6 +62,20 @@ export interface WorktreeInfo {
   branch: string;
   name: string;
   isWorktree: boolean;
+}
+
+export interface GitInfo {
+  root: string;
+  branch: string;
+  aheadBehind: { ahead: number; behind: number } | null;
+  dirtyCount: number;
+  diffStat: { added: number; removed: number } | null;
+  stashCount: number;
+  lastCommitAge: string | null;
+  branchCommits: number | null;
+  state: "MERGE" | "REBASE" | "CHERRY-PICK" | "REVERT" | null;
+  tag: string | null;
+  worktrees: Array<{ path: string; branch: string; dirty: boolean }>;
 }
 
 export const DEFAULT_CONFIG: Config = {

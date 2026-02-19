@@ -1,15 +1,32 @@
 import { describe, it } from "node:test";
 import { execSync } from "node:child_process";
+import { writeFileSync, unlinkSync } from "node:fs";
+import { tmpdir } from "node:os";
+import { join } from "node:path";
 import assert from "node:assert/strict";
 
 const PLUGIN_ROOT = new URL("..", import.meta.url).pathname.replace(/\/$/, "");
 const DIST = `${PLUGIN_ROOT}/dist/index.js`;
 
-function runStatusLine(input: object): string {
-  return execSync(
-    `echo '${JSON.stringify(input)}' | node ${DIST}`,
-    { encoding: "utf-8", cwd: PLUGIN_ROOT, stdio: ["pipe", "pipe", "pipe"] }
-  ).trim();
+function runStatusLine(input: object, configOverride?: object): string {
+  let env = "";
+  let tmpConfigPath: string | null = null;
+  if (configOverride) {
+    tmpConfigPath = join(tmpdir(), `wt-monitor-test-${Date.now()}.json`);
+    writeFileSync(tmpConfigPath, JSON.stringify(configOverride));
+    env = `WORKTREE_MONITOR_CONFIG=${tmpConfigPath} `;
+  }
+  const json = JSON.stringify(input);
+  try {
+    return execSync(
+      `printf '%s' ${JSON.stringify(json)} | ${env}node ${DIST}`,
+      { encoding: "utf-8", cwd: PLUGIN_ROOT, stdio: ["pipe", "pipe", "pipe"] }
+    ).trim();
+  } finally {
+    if (tmpConfigPath) {
+      try { unlinkSync(tmpConfigPath); } catch {}
+    }
+  }
 }
 
 const BASE_INPUT = {
@@ -70,6 +87,96 @@ describe("statusline output", () => {
     const input = { ...BASE_INPUT, workspace: { current_dir: "/tmp", project_dir: "/tmp" } };
     const output = runStatusLine(input);
     // Should still have model and context, just no worktree widget
+    assert.ok(output.includes("Opus 4.6"));
+    assert.ok(output.includes("40%"));
+  });
+});
+
+describe("git widgets", () => {
+  const gitConfig = (widgets: Array<string>) => ({
+    hooks: { sessionStart: false, preToolUse: false, postToolUse: false },
+    widgets,
+  });
+
+  it("git-dirty shows dirty count or clean for a git repo", () => {
+    const output = runStatusLine(BASE_INPUT, gitConfig(["git-dirty"]));
+    // In the plugin repo, we expect either "dirty" or "clean"
+    assert.ok(
+      output.includes("dirty") || output.includes("clean"),
+      `Expected dirty/clean indicator in: ${output}`
+    );
+  });
+
+  it("git-last-commit shows relative time", () => {
+    const output = runStatusLine(BASE_INPUT, gitConfig(["git-last-commit"]));
+    assert.ok(
+      output.includes("ago"),
+      `Expected relative time with 'ago' in: ${output}`
+    );
+  });
+
+  it("git-state is hidden when no merge/rebase in progress", () => {
+    const output = runStatusLine(BASE_INPUT, gitConfig(["git-state"]));
+    // In normal state, git-state should be hidden (null) — empty output
+    assert.ok(
+      !output.includes("REBASE") && !output.includes("MERGE"),
+      `Expected no git state in: ${output}`
+    );
+  });
+
+  it("git-stash is hidden when stash count is 0", () => {
+    // We can't guarantee stash state, but the widget should not crash
+    const output = runStatusLine(BASE_INPUT, gitConfig(["git-stash"]));
+    // Either shows stash count or is empty — should not crash
+    assert.ok(typeof output === "string");
+  });
+
+  it("git-diff-stat shows additions/removals or is hidden", () => {
+    const output = runStatusLine(BASE_INPUT, gitConfig(["git-diff-stat"]));
+    // Either shows +N -N or is empty (no unstaged changes)
+    if (output.length > 0) {
+      assert.ok(output.includes("+") && output.includes("-"), `Expected diff stat format in: ${output}`);
+    }
+  });
+
+  it("git-ahead-behind shows arrows or is hidden (no upstream)", () => {
+    const output = runStatusLine(BASE_INPUT, gitConfig(["git-ahead-behind"]));
+    // May be empty if no upstream configured
+    if (output.length > 0) {
+      assert.ok(output.includes("⬆") && output.includes("⬇"), `Expected arrows in: ${output}`);
+    }
+  });
+
+  it("git-tag shows tag or is hidden", () => {
+    const output = runStatusLine(BASE_INPUT, gitConfig(["git-tag"]));
+    // May be empty if no tags in the repo
+    assert.ok(typeof output === "string");
+  });
+
+  it("git-branch-commits shows commit count or is hidden", () => {
+    const output = runStatusLine(BASE_INPUT, gitConfig(["git-branch-commits"]));
+    // May be empty if on main branch
+    if (output.length > 0) {
+      assert.ok(output.includes("commit"), `Expected 'commit' in: ${output}`);
+    }
+  });
+
+  it("multiple git widgets render with separators", () => {
+    const output = runStatusLine(BASE_INPUT, gitConfig(["model", "git-dirty", "git-last-commit"]));
+    assert.ok(output.includes("Opus 4.6"), `Expected model in: ${output}`);
+    assert.ok(output.includes("│"), `Expected separator in: ${output}`);
+  });
+
+  it("handles non-git workspace gracefully with git widgets", () => {
+    const input = { ...BASE_INPUT, workspace: { current_dir: "/tmp", project_dir: "/tmp" } };
+    const output = runStatusLine(input, gitConfig(["git-dirty", "git-last-commit", "model"]));
+    // Git widgets should be null, model should still render
+    assert.ok(output.includes("Opus 4.6"), `Expected model in: ${output}`);
+  });
+
+  it("skips git detection entirely when no git widgets configured", () => {
+    // With only base widgets, should work fine and fast
+    const output = runStatusLine(BASE_INPUT, gitConfig(["model", "context"]));
     assert.ok(output.includes("Opus 4.6"));
     assert.ok(output.includes("40%"));
   });

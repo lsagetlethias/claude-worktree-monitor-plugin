@@ -11,6 +11,23 @@ export function formatTokens(tokens: number): string {
   return `${tokens}`;
 }
 
+/** Shorten git relative time: "2 hours ago" → "2h ago", "3 days ago" → "3d ago" */
+export function formatRelativeTime(crFormat: string): string {
+  return crFormat
+    .replace(/\s+seconds?\s+ago/, "s ago")
+    .replace(/\s+minutes?\s+ago/, "m ago")
+    .replace(/\s+hours?\s+ago/, "h ago")
+    .replace(/\s+days?\s+ago/, "d ago")
+    .replace(/\s+weeks?\s+ago/, "w ago")
+    .replace(/\s+months?\s+ago/, "mo ago")
+    .replace(/\s+years?\s+ago/, "y ago");
+}
+
+/** Format diff stat: formatDiffStat(42, 17) → "+42 -17" */
+export function formatDiffStat(added: number, removed: number): string {
+  return `+${added} -${removed}`;
+}
+
 /** Shorten model display name: "Claude Opus 4.6" → "Opus 4.6" */
 export function shortenModelName(displayName: string): string {
   const match = displayName.match(/(Opus|Sonnet|Haiku)\s*([\d.]*)/);
