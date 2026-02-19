@@ -4,7 +4,7 @@
 - **Version**: 1.0.0
 - **Status line**: worktree + model + context widgets
 - **Hooks**: SessionStart (compaction alert), PreToolUse (file guard), PostToolUse (file warn)
-- **Skills**: `/worktree-monitor:setup`, `/worktree-monitor:set`
+- **Skills**: `/worktree-monitor:setup`, `/worktree-monitor:set`, `/worktree-monitor:widgets`
 
 ## Recent Activity
 
