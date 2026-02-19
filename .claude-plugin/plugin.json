@@ -1,12 +1,11 @@
 {
   "name": "worktree-monitor",
-  "version": "1.2.1",
+  "version": "1.2.2",
   "description": "Git worktree monitor — status line, protection hooks, and skills for multi-worktree Claude Code sessions",
   "author": {
     "name": "lsagetlethias"
   },
   "repository": "https://github.com/lsagetlethias/claude-worktree-monitor-plugin",
   "license": "MIT",
-  "keywords": [ "git", "worktree", "status-line", "hooks", "parallel-sessions" ],
-  "hooks": "./hooks/hooks.json"
+  "keywords": [ "git", "worktree", "status-line", "hooks", "parallel-sessions" ]
 }
