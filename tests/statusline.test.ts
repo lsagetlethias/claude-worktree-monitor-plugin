@@ -1,5 +1,5 @@
 import { describe, it } from "node:test";
-import { execSync } from "node:child_process";
+import { spawnSync } from "node:child_process";
 import { writeFileSync, unlinkSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
@@ -10,19 +10,20 @@ const DIST = `${PLUGIN_ROOT}/dist/index.js`;
 let tmpCounter = 0;
 
 function runStatusLine(input: object, configOverride?: object): string {
-  let env = "";
   let tmpConfigPath: string | null = null;
   if (configOverride) {
     tmpConfigPath = join(tmpdir(), `wt-monitor-test-${process.pid}-${++tmpCounter}.json`);
     writeFileSync(tmpConfigPath, JSON.stringify(configOverride));
-    env = `WORKTREE_MONITOR_CONFIG=${tmpConfigPath} `;
   }
-  const json = JSON.stringify(input);
   try {
-    return execSync(
-      `printf '%s' ${JSON.stringify(json)} | ${env}node ${DIST}`,
-      { encoding: "utf-8", cwd: PLUGIN_ROOT, stdio: ["pipe", "pipe", "pipe"] }
-    ).trim();
+    const result = spawnSync("node", [DIST], {
+      input: JSON.stringify(input),
+      encoding: "utf-8",
+      cwd: PLUGIN_ROOT,
+      env: tmpConfigPath ? { ...process.env, WORKTREE_MONITOR_CONFIG: tmpConfigPath } : process.env,
+      stdio: ["pipe", "pipe", "pipe"],
+    });
+    return (result.stdout ?? "").trim();
   } finally {
     if (tmpConfigPath) {
       try { unlinkSync(tmpConfigPath); } catch {}
