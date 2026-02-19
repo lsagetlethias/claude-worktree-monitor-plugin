@@ -1,7 +1,7 @@
 import { describe, it } from "node:test";
 import assert from "node:assert/strict";
 
-import { formatTokens, shortenModelName } from "../scripts/utils/formatters.js";
+import { formatRelativeTime, formatTokens, shortenModelName } from "../scripts/utils/formatters.js";
 
 describe("formatTokens", () => {
   it("formats small numbers as-is", () => {
@@ -39,5 +39,24 @@ describe("shortenModelName", () => {
   it("falls back to last word for unknown models", () => {
     assert.equal(shortenModelName("GPT-4o"), "GPT-4o");
     assert.equal(shortenModelName("Some Unknown Model"), "Model");
+  });
+});
+
+describe("formatRelativeTime", () => {
+  it("shortens common time units", () => {
+    assert.equal(formatRelativeTime("2 hours ago"), "2h ago");
+    assert.equal(formatRelativeTime("1 hour ago"), "1h ago");
+    assert.equal(formatRelativeTime("5 minutes ago"), "5m ago");
+    assert.equal(formatRelativeTime("1 minute ago"), "1m ago");
+    assert.equal(formatRelativeTime("30 seconds ago"), "30s ago");
+    assert.equal(formatRelativeTime("3 days ago"), "3d ago");
+    assert.equal(formatRelativeTime("1 day ago"), "1d ago");
+    assert.equal(formatRelativeTime("2 weeks ago"), "2w ago");
+    assert.equal(formatRelativeTime("6 months ago"), "6mo ago");
+    assert.equal(formatRelativeTime("1 year ago"), "1y ago");
+  });
+
+  it("passes through unknown formats", () => {
+    assert.equal(formatRelativeTime("just now"), "just now");
   });
 });

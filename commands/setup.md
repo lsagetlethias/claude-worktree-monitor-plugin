@@ -49,6 +49,18 @@ Utiliser `AskUserQuestion` pour demander quels hooks activer :
   - `PreToolUse (file guard)` — Bloque les opérations fichier hors du worktree actif
   - `PostToolUse (file warn)` — Avertissement non-bloquant pour les opérations hors worktree
 
+### 4b. Demander les widgets git
+
+Utiliser `AskUserQuestion` pour demander quels widgets git activer :
+
+**Question 2** : "Quel niveau de widgets git souhaitez-vous ?"
+- Options :
+  - `Essentiel (Recommandé)` — Ajoute `git-ahead-behind`, `git-dirty`, `git-state` à la liste de widgets
+  - `Complet` — Ajoute tous les widgets git : `git-ahead-behind`, `git-dirty`, `git-diff-stat`, `git-stash`, `git-last-commit`, `git-branch-commits`, `git-state`, `git-tag`, `wt-count`, `wt-dirty`, `wt-branches`
+  - `Minimal` — N'ajoute aucun widget git (garde uniquement worktree, model, context)
+
+Les widgets choisis sont ajoutés après les widgets de base (`worktree`, `model`, `context`).
+
 ### 5. Sauvegarder la configuration
 
 Écrire `~/.claude/worktree-monitor.json` avec les choix de l'utilisateur.
