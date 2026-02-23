@@ -19,4 +19,9 @@ jobs:
 
       - run: pnpm install --frozen-lockfile
 
+      - name: Configure git for tests
+        run: |
+          git config --global user.name "CI"
+          git config --global user.email "ci@test"
+
       - run: pnpm test
