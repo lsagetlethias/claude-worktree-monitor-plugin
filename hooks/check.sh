@@ -196,17 +196,45 @@ case "$PERMISSION" in
       exit 0
     else
       # Write operation on readonly worktree → block with upgrade message
-      cat <<EOF
-{"decision":"block","reason":"⛔ Worktree Monitor: écriture bloquée — le worktree '$TARGET_WT_ROOT' a un accès readonly.\n\nLe chemin '$FILE_PATH' est dans un autre worktree du même repo.\nAccès actuel : readonly (Read/Glob/Grep autorisés, Write/Edit/MultiEdit bloqués).\n\nDemande à l'utilisateur avec AskUserQuestion s'il veut passer en readwrite.\nPuis mets à jour le fichier : $PERMS_FILE\nClé : \"$TARGET_WT_ROOT\" → valeur : \"readwrite\""}
-EOF
+      # Use jq to properly escape shell variables in JSON output
+      REASON=$(cat <<REASON_EOF
+⛔ Worktree Monitor: écriture bloquée — le worktree '$TARGET_WT_ROOT' a un accès readonly.
+
+Le chemin '$FILE_PATH' est dans un autre worktree du même repo.
+Accès actuel : readonly (Read/Glob/Grep autorisés, Write/Edit/MultiEdit bloqués).
+
+Demande à l'utilisateur avec AskUserQuestion s'il veut passer en readwrite.
+Puis mets à jour le fichier : $PERMS_FILE
+Clé : "$TARGET_WT_ROOT" → valeur : "readwrite"
+REASON_EOF
+)
+      jq -cn --arg reason "$REASON" '{"decision":"block","reason":$reason}'
       exit 2
     fi
     ;;
   *)
     # No permission recorded → block with grant message
-    cat <<EOF
-{"decision":"block","reason":"⛔ Worktree Monitor: accès inter-worktree non autorisé.\n\nLe chemin '$FILE_PATH' est dans un autre worktree du même repo :\n  Worktree cible  : $TARGET_WT_ROOT\n  Worktree actif  : $EXPECTED_ROOT\n\nAucune permission enregistrée.\n\nDemande à l'utilisateur avec AskUserQuestion quel accès accorder :\n  1. readonly  — Read, Glob, Grep uniquement\n  2. readwrite — toutes les opérations fichier\n\nPuis sauvegarde dans : $PERMS_FILE\nFormat JSON : { \"$TARGET_WT_ROOT\": \"readonly\" }\n\nSi le fichier n'existe pas, crée-le (mkdir -p pour le dossier .claude/)."}
-EOF
+    # Use jq to properly escape shell variables in JSON output
+    REASON=$(cat <<REASON_EOF
+⛔ Worktree Monitor: accès inter-worktree non autorisé.
+
+Le chemin '$FILE_PATH' est dans un autre worktree du même repo :
+  Worktree cible  : $TARGET_WT_ROOT
+  Worktree actif  : $EXPECTED_ROOT
+
+Aucune permission enregistrée.
+
+Demande à l'utilisateur avec AskUserQuestion quel accès accorder :
+  1. readonly  — Read, Glob, Grep uniquement
+  2. readwrite — toutes les opérations fichier
+
+Puis sauvegarde dans : $PERMS_FILE
+Format JSON : { "$TARGET_WT_ROOT": "readonly" }
+
+Si le fichier n'existe pas, crée-le (mkdir -p pour le dossier .claude/).
+REASON_EOF
+)
+    jq -cn --arg reason "$REASON" '{"decision":"block","reason":$reason}'
     exit 2
     ;;
 esac
