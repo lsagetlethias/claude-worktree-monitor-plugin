@@ -1,6 +1,6 @@
 import { after, describe, it } from "node:test";
 import { execSync } from "node:child_process";
-import { rmSync } from "node:fs";
+import { mkdirSync, rmSync, writeFileSync } from "node:fs";
 import assert from "node:assert/strict";
 
 const PLUGIN_ROOT = new URL("..", import.meta.url).pathname.replace(/\/$/, "");
@@ -16,6 +16,26 @@ function setupTempGitRepo(): string {
   execSync("git commit --allow-empty -m init", { cwd: dir, stdio: "pipe" });
   tempDirs.push(dir);
   return dir;
+}
+
+function setupTempGitRepoWithWorktrees(): { main: string; secondary: string } {
+  const mainRaw = setupTempGitRepo();
+  const secondaryRaw = execSync("mktemp -d", { encoding: "utf-8" }).trim();
+  // Remove the dir so git worktree add can create it
+  rmSync(secondaryRaw, { recursive: true, force: true });
+  execSync(`git worktree add "${secondaryRaw}" -b test-branch`, { cwd: mainRaw, stdio: "pipe" });
+  tempDirs.push(secondaryRaw);
+  // Resolve real paths for git consistency (macOS /var → /private/var symlink)
+  const main = execSync("git rev-parse --show-toplevel", { encoding: "utf-8", cwd: mainRaw }).trim();
+  const secondary = execSync("git rev-parse --show-toplevel", { encoding: "utf-8", cwd: secondaryRaw }).trim();
+  return { main, secondary };
+}
+
+function writePermissionsFile(worktreeRoot: string, permissions: Record<string, string>): void {
+  const dir = `${worktreeRoot}/.claude`;
+  mkdirSync(dir, { recursive: true });
+  const filePath = `${dir}/.worktree-monitor-permissions`;
+  writeFileSync(filePath, JSON.stringify(permissions));
 }
 
 after(() => {
@@ -96,27 +116,149 @@ describe("check.sh", () => {
     });
   });
 
-  describe("out-of-worktree blocking", () => {
-    it("blocks reads to non-existent paths outside worktree in pre mode", () => {
+  describe("non-git and different-repo paths (auto-accept)", () => {
+    it("auto-accepts paths not in any git repo", () => {
       const gitCwd = setupTempGitRepo();
       const result = runCheck(
-        { tool_name: "Read", tool_input: { file_path: "/Users/nobody/evil-project/secrets.txt" } },
+        { tool_name: "Read", tool_input: { file_path: "/Users/nobody/random-project/file.txt" } },
         "pre",
         gitCwd
+      );
+      assert.equal(result.exitCode, 0);
+      assert.equal(result.stdout, "");
+    });
+
+    it("auto-accepts paths in a different git repo", () => {
+      const repoA = setupTempGitRepo();
+      const repoB = setupTempGitRepo();
+      // Create a file in repoB so the path exists
+      writeFileSync(`${repoB}/file.txt`, "hello");
+      const result = runCheck(
+        { tool_name: "Read", tool_input: { file_path: `${repoB}/file.txt` } },
+        "pre",
+        repoA
+      );
+      assert.equal(result.exitCode, 0);
+      assert.equal(result.stdout, "");
+    });
+  });
+
+  describe("same-repo cross-worktree access", () => {
+    it("blocks access when no permission is recorded", () => {
+      const { main, secondary } = setupTempGitRepoWithWorktrees();
+      const result = runCheck(
+        { tool_name: "Read", tool_input: { file_path: `${secondary}/file.txt` } },
+        "pre",
+        main
+      );
+      assert.equal(result.exitCode, 2);
+      assert.ok(result.stdout.includes('"decision":"block"'));
+      assert.ok(result.stdout.includes("accès inter-worktree"));
+    });
+
+    it("allows Read with readonly permission", () => {
+      const { main, secondary } = setupTempGitRepoWithWorktrees();
+      writePermissionsFile(main, { [secondary]: "readonly" });
+      const result = runCheck(
+        { tool_name: "Read", tool_input: { file_path: `${secondary}/file.txt` } },
+        "pre",
+        main
+      );
+      assert.equal(result.exitCode, 0);
+    });
+
+    it("allows Glob with readonly permission", () => {
+      const { main, secondary } = setupTempGitRepoWithWorktrees();
+      writePermissionsFile(main, { [secondary]: "readonly" });
+      const result = runCheck(
+        { tool_name: "Glob", tool_input: { path: secondary } },
+        "pre",
+        main
+      );
+      assert.equal(result.exitCode, 0);
+    });
+
+    it("allows Grep with readonly permission", () => {
+      const { main, secondary } = setupTempGitRepoWithWorktrees();
+      writePermissionsFile(main, { [secondary]: "readonly" });
+      const result = runCheck(
+        { tool_name: "Grep", tool_input: { path: secondary, pattern: "foo" } },
+        "pre",
+        main
+      );
+      assert.equal(result.exitCode, 0);
+    });
+
+    it("blocks Write with readonly permission", () => {
+      const { main, secondary } = setupTempGitRepoWithWorktrees();
+      writePermissionsFile(main, { [secondary]: "readonly" });
+      const result = runCheck(
+        { tool_name: "Write", tool_input: { file_path: `${secondary}/file.txt` } },
+        "pre",
+        main
+      );
+      assert.equal(result.exitCode, 2);
+      assert.ok(result.stdout.includes('"decision":"block"'));
+      assert.ok(result.stdout.includes("readonly"));
+    });
+
+    it("blocks Edit with readonly permission", () => {
+      const { main, secondary } = setupTempGitRepoWithWorktrees();
+      writePermissionsFile(main, { [secondary]: "readonly" });
+      const result = runCheck(
+        { tool_name: "Edit", tool_input: { file_path: `${secondary}/file.txt` } },
+        "pre",
+        main
       );
       assert.equal(result.exitCode, 2);
       assert.ok(result.stdout.includes('"decision":"block"'));
     });
 
-    it("warns but allows in post mode", () => {
-      const gitCwd = setupTempGitRepo();
+    it("allows Write with readwrite permission", () => {
+      const { main, secondary } = setupTempGitRepoWithWorktrees();
+      writePermissionsFile(main, { [secondary]: "readwrite" });
       const result = runCheck(
-        { tool_name: "Read", tool_input: { file_path: "/Users/nobody/evil-project/secrets.txt" } },
+        { tool_name: "Write", tool_input: { file_path: `${secondary}/file.txt` } },
+        "pre",
+        main
+      );
+      assert.equal(result.exitCode, 0);
+    });
+
+    it("allows Edit with readwrite permission", () => {
+      const { main, secondary } = setupTempGitRepoWithWorktrees();
+      writePermissionsFile(main, { [secondary]: "readwrite" });
+      const result = runCheck(
+        { tool_name: "Edit", tool_input: { file_path: `${secondary}/file.txt` } },
+        "pre",
+        main
+      );
+      assert.equal(result.exitCode, 0);
+    });
+
+    it("warns but allows in post mode (no permission)", () => {
+      const { main, secondary } = setupTempGitRepoWithWorktrees();
+      const result = runCheck(
+        { tool_name: "Read", tool_input: { file_path: `${secondary}/file.txt` } },
         "post",
-        gitCwd
+        main
       );
       assert.equal(result.exitCode, 0);
       assert.ok(result.stdout.includes("Worktree Monitor"));
+      assert.ok(result.stdout.includes("autre worktree"));
+    });
+
+    it("handles paths whose parent dir does not exist yet", () => {
+      const { main, secondary } = setupTempGitRepoWithWorktrees();
+      // Path with non-existent intermediate directory
+      const result = runCheck(
+        { tool_name: "Write", tool_input: { file_path: `${secondary}/newdir/subdir/file.txt` } },
+        "pre",
+        main
+      );
+      // Should still detect as same-repo cross-worktree and block (no permission)
+      assert.equal(result.exitCode, 2);
+      assert.ok(result.stdout.includes('"decision":"block"'));
     });
   });
 

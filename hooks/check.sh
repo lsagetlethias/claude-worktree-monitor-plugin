@@ -4,6 +4,12 @@
 # Checks that file operations stay within the active worktree root.
 # Behavior controlled by WORKTREE_MONITOR_MODE env var: "pre" or "post"
 #
+# Smart cross-worktree access control:
+#   - Path not in any git repo        → auto-accept (silent)
+#   - Path in a different git repo     → auto-accept (silent)
+#   - Path in same repo, other worktree → check permissions file
+#     (readonly / readwrite / not set → block with guidance)
+#
 # Pre mode:  exit 2 + JSON deny → blocks the operation
 # Post mode: stdout warning → informational only
 #
@@ -62,24 +68,44 @@ normalize_path() {
   python3 -c "import os,sys; print(os.path.normpath(sys.argv[1]))" "$1" 2>/dev/null || echo "$1"
 }
 
+# Walk up directory tree to find first existing ancestor
+find_existing_ancestor() {
+  local dir="$1"
+  while [ ! -d "$dir" ] && [ "$dir" != "/" ]; do
+    dir=$(dirname "$dir")
+  done
+  echo "$dir"
+}
+
+# Resolve git-common-dir to an absolute, normalized path.
+# git-common-dir can return relative paths (e.g. ".git") from the main worktree.
+resolve_git_common_dir() {
+  local dir="$1"
+  local raw
+  raw=$(git -C "$dir" rev-parse --git-common-dir 2>/dev/null) || return 1
+  if [[ "$raw" = /* ]]; then
+    normalize_path "$raw"
+  else
+    normalize_path "$dir/$raw"
+  fi
+}
+
+# Classify tool as read-only or write operation
+is_read_operation() {
+  case "$1" in
+    Read|Glob|Grep) return 0 ;;
+    *) return 1 ;;
+  esac
+}
+
 NORM_PATH=$(normalize_path "$FILE_PATH")
 
-# Determine expected root
-# Strategy: try git root from file's directory, fallback to hook CWD's git root
-# Priority: pin file > git rev-parse
+# Determine expected root from CWD (Claude Code runs hooks from the project directory)
+# Priority: pin file > git rev-parse from CWD
 EXPECTED_ROOT=""
 GIT_ROOT=""
 
-# Try deriving git root from the file path's directory (handles non-CWD projects)
-FILE_DIR=$(dirname "$NORM_PATH")
-if [ -d "$FILE_DIR" ]; then
-  GIT_ROOT=$(git -C "$FILE_DIR" rev-parse --show-toplevel 2>/dev/null || true)
-fi
-
-# Fallback: derive git root from hook's CWD (Claude Code runs hooks from project dir)
-if [ -z "$GIT_ROOT" ]; then
-  GIT_ROOT=$(git rev-parse --show-toplevel 2>/dev/null || true)
-fi
+GIT_ROOT=$(git rev-parse --show-toplevel 2>/dev/null || true)
 
 if [ -n "$GIT_ROOT" ]; then
   # Check for pinned root file (written by /worktree-monitor:set)
@@ -109,15 +135,75 @@ case "$NORM_PATH" in
     ;;
 esac
 
-# Out of worktree!
-if [ "$MODE" = "pre" ]; then
-  # Block the operation
-  cat <<EOF
-{"decision":"block","reason":"⛔ Worktree Monitor: opération bloquée — le chemin '$FILE_PATH' est hors du worktree actif ($EXPECTED_ROOT). Utilisez /worktree-monitor:set pour changer de worktree."}
-EOF
-  exit 2
-else
-  # Post mode: warning only
-  echo "⚠️ Worktree Monitor: le chemin '$FILE_PATH' est hors du worktree actif ($EXPECTED_ROOT)."
+# --- Path is OUTSIDE current worktree root ---
+# Smart decision: check if target is in the same repo (another worktree) or unrelated.
+
+# Find effective directory for the target path (walk up if doesn't exist yet)
+TARGET_DIR=$(find_existing_ancestor "$(dirname "$NORM_PATH")")
+
+# Step A: Is the target path in a git repo at all?
+TARGET_COMMON=$(resolve_git_common_dir "$TARGET_DIR") || {
+  # Target is NOT in a git repo → auto-accept
+  exit 0
+}
+
+# Step B: Is the current session in a git repo?
+CURRENT_COMMON=$(resolve_git_common_dir "$(pwd)") || {
+  # Current session not in git → fail-open
+  exit 0
+}
+
+# Step C: Same repo?
+if [ "$TARGET_COMMON" != "$CURRENT_COMMON" ]; then
+  # Different repo entirely → auto-accept
   exit 0
 fi
+
+# --- Same repo, different worktree ---
+
+# Find the target worktree root
+TARGET_WT_ROOT=$(git -C "$TARGET_DIR" rev-parse --show-toplevel 2>/dev/null || true)
+if [ -z "$TARGET_WT_ROOT" ]; then
+  # Cannot determine target worktree root → fail-open
+  exit 0
+fi
+TARGET_WT_ROOT=$(normalize_path "$TARGET_WT_ROOT")
+
+# Post mode: warn only, don't block
+if [ "$MODE" != "pre" ]; then
+  echo "⚠️ Worktree Monitor: le chemin '$FILE_PATH' est dans un autre worktree du même repo ($TARGET_WT_ROOT) — worktree actif : $EXPECTED_ROOT."
+  exit 0
+fi
+
+# Pre mode: check permissions file
+PERMS_FILE="${NORM_ROOT}/.claude/.worktree-monitor-permissions"
+PERMISSION=""
+if [ -f "$PERMS_FILE" ]; then
+  PERMISSION=$(jq -r --arg wt "$TARGET_WT_ROOT" '.[$wt] // empty' "$PERMS_FILE" 2>/dev/null)
+fi
+
+case "$PERMISSION" in
+  readwrite)
+    # Full access granted
+    exit 0
+    ;;
+  readonly)
+    if is_read_operation "$TOOL_NAME"; then
+      # Read operations allowed
+      exit 0
+    else
+      # Write operation on readonly worktree → block with upgrade message
+      cat <<EOF
+{"decision":"block","reason":"⛔ Worktree Monitor: écriture bloquée — le worktree '$TARGET_WT_ROOT' a un accès readonly.\n\nLe chemin '$FILE_PATH' est dans un autre worktree du même repo.\nAccès actuel : readonly (Read/Glob/Grep autorisés, Write/Edit/MultiEdit bloqués).\n\nDemande à l'utilisateur avec AskUserQuestion s'il veut passer en readwrite.\nPuis mets à jour le fichier : $PERMS_FILE\nClé : \"$TARGET_WT_ROOT\" → valeur : \"readwrite\""}
+EOF
+      exit 2
+    fi
+    ;;
+  *)
+    # No permission recorded → block with grant message
+    cat <<EOF
+{"decision":"block","reason":"⛔ Worktree Monitor: accès inter-worktree non autorisé.\n\nLe chemin '$FILE_PATH' est dans un autre worktree du même repo :\n  Worktree cible  : $TARGET_WT_ROOT\n  Worktree actif  : $EXPECTED_ROOT\n\nAucune permission enregistrée.\n\nDemande à l'utilisateur avec AskUserQuestion quel accès accorder :\n  1. readonly  — Read, Glob, Grep uniquement\n  2. readwrite — toutes les opérations fichier\n\nPuis sauvegarde dans : $PERMS_FILE\nFormat JSON : { \"$TARGET_WT_ROOT\": \"readonly\" }\n\nSi le fichier n'existe pas, crée-le (mkdir -p pour le dossier .claude/)."}
+EOF
+    exit 2
+    ;;
+esac
