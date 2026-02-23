@@ -53,7 +53,22 @@ Une fois le worktree confirmé par l'utilisateur :
 - Indiquer que TOUS les chemins absolus doivent pointer vers ce répertoire
 - Ne JAMAIS toucher aux fichiers d'un autre worktree
 
-### 5. Résumé
+### 5. Permissions inter-worktree
+
+Si l'utilisateur accède à un fichier dans un autre worktree du même repo, le hook `check.sh` demandera un niveau d'accès.
+
+Les permissions sont stockées dans :
+```
+{project}/.claude/.worktree-monitor-permissions
+```
+
+Format JSON : `{ "/chemin/worktree": "readonly" | "readwrite" }`
+
+Ce fichier est géré automatiquement par le hook PreToolUse qui guide Claude pour demander la permission à l'utilisateur.
+
+**Note** : Ajouter `.claude/.worktree-monitor-permissions` au `.gitignore` du projet si ce n'est pas déjà fait.
+
+### 6. Résumé
 
 Afficher un résumé :
 - Worktree confirmé : chemin absolu + branche

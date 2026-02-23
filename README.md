@@ -6,8 +6,9 @@ Plugin Claude Code pour le monitoring et la protection des git worktrees.
 
 - **Status line** — Affiche en permanence le worktree actif, le modèle Claude, et l'utilisation du contexte
 - **Hook SessionStart** — Alerte après compaction si plusieurs worktrees existent (confirmation utilisateur)
-- **Hook PreToolUse** — Bloque les opérations fichier hors du worktree actif (opt-in)
+- **Hook PreToolUse** — Contrôle d'accès intelligent pour les opérations fichier (opt-in)
 - **Hook PostToolUse** — Avertissement non-bloquant pour les opérations hors worktree (opt-in)
+- **Permissions inter-worktree** — Accès readonly/readwrite entre worktrees du même repo
 - **Skills** — `/worktree-monitor:setup` pour configurer, `/worktree-monitor:set` pour sélectionner un worktree, `/worktree-monitor:widgets` pour configurer les widgets
 
 ## Prérequis
@@ -107,10 +108,32 @@ Le tableau `widgets` détermine quels widgets sont affichés et dans quel ordre.
 | Hook | Comportement | Par défaut |
 |---|---|---|
 | `SessionStart` (compact) | Liste les worktrees et demande confirmation | Actif |
-| `PreToolUse` (file guard) | Bloque Read/Write/Edit/Glob/Grep hors worktree | Inactif |
+| `PreToolUse` (file guard) | Contrôle d'accès intelligent hors worktree | Inactif |
 | `PostToolUse` (file warn) | Warning non-bloquant pour les opérations hors worktree | Inactif |
 
 Les hooks PreToolUse et PostToolUse s'activent via `/worktree-monitor:setup`.
+
+### Contrôle d'accès intelligent
+
+Quand un chemin est hors du worktree actif, le hook analyse le contexte :
+
+| Situation | Comportement |
+|---|---|
+| Chemin pas dans un repo git | Auto-accept silencieux |
+| Chemin dans un **autre** repo git | Auto-accept silencieux |
+| Chemin dans un **autre worktree du même repo** | Demande permission (readonly/readwrite) |
+
+Pour les accès inter-worktree, les permissions sont sauvegardées dans `.claude/.worktree-monitor-permissions` (JSON) :
+```json
+{
+  "/chemin/vers/autre-worktree": "readonly"
+}
+```
+
+- **readonly** : autorise Read, Glob, Grep — bloque Write, Edit, MultiEdit
+- **readwrite** : autorise toutes les opérations
+
+Si une opération d'écriture est tentée sur un worktree en readonly, le hook propose un upgrade vers readwrite.
 
 ### Allowlist
 
@@ -137,12 +160,23 @@ Sélectionne le worktree actif quand plusieurs existent. Sauvegarde le choix dan
 
 Configure interactivement les widgets de la status line. Propose des presets avec preview ASCII, ou une sélection widget par widget. Met à jour la clé `widgets` dans `~/.claude/worktree-monitor.json`.
 
+## CI/CD
+
+- **Tests** — Exécutés automatiquement sur chaque PR ciblant `main` (`pnpm test`)
+- **Release** — Utilise [release-please](https://github.com/googleapis/release-please) pour automatiser le versioning et les GitHub Releases
+
+### Fonctionnement des releases
+
+1. Les commits sur `main` suivent les [Conventional Commits](https://www.conventionalcommits.org/) (`feat:`, `fix:`, `docs:`, etc.)
+2. release-please ouvre automatiquement une PR de release avec le bump de version et le changelog
+3. Au merge de cette PR → tag `v*` et GitHub Release créés automatiquement
+
 ## Développement
 
 ```bash
 pnpm install
 pnpm build    # Bundle TypeScript → dist/index.js
-pnpm test     # 29 tests (node:test + tsx)
+pnpm test     # 57 tests (node:test + tsx)
 ```
 
 ## Licence
