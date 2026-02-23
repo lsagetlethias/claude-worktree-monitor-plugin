@@ -63,14 +63,19 @@ case "$FILE_PATH" in
     ;;
 esac
 
-# Normalize path — macOS-compatible (no realpath -m)
+# Normalize path — macOS-compatible, resolves symlinks (e.g. /var → /private/var)
 normalize_path() {
-  python3 -c "import os,sys; print(os.path.normpath(sys.argv[1]))" "$1" 2>/dev/null || echo "$1"
+  python3 -c "import os,sys; print(os.path.realpath(sys.argv[1]))" "$1" 2>/dev/null || echo "$1"
 }
 
 # Walk up directory tree to find first existing ancestor
 find_existing_ancestor() {
   local dir="$1"
+  # Guard against empty/whitespace input
+  if [ -z "$dir" ]; then
+    echo "/"
+    return
+  fi
   while [ ! -d "$dir" ] && [ "$dir" != "/" ]; do
     dir=$(dirname "$dir")
   done
@@ -176,11 +181,9 @@ if [ "$MODE" != "pre" ]; then
 fi
 
 # Pre mode: check permissions file
+# No -f guard: jq handles missing/corrupted files, || true prevents set -e fail-open
 PERMS_FILE="${NORM_ROOT}/.claude/.worktree-monitor-permissions"
-PERMISSION=""
-if [ -f "$PERMS_FILE" ]; then
-  PERMISSION=$(jq -r --arg wt "$TARGET_WT_ROOT" '.[$wt] // empty' "$PERMS_FILE" 2>/dev/null)
-fi
+PERMISSION=$(jq -r --arg wt "$TARGET_WT_ROOT" '.[$wt] // empty' "$PERMS_FILE" 2>/dev/null || true)
 
 case "$PERMISSION" in
   readwrite)

@@ -236,6 +236,43 @@ describe("check.sh", () => {
       assert.equal(result.exitCode, 0);
     });
 
+    it("blocks MultiEdit with readonly permission", () => {
+      const { main, secondary } = setupTempGitRepoWithWorktrees();
+      writePermissionsFile(main, { [secondary]: "readonly" });
+      const result = runCheck(
+        { tool_name: "MultiEdit", tool_input: { file_path: `${secondary}/file.txt` } },
+        "pre",
+        main
+      );
+      assert.equal(result.exitCode, 2);
+      assert.ok(result.stdout.includes('"decision":"block"'));
+    });
+
+    it("allows MultiEdit with readwrite permission", () => {
+      const { main, secondary } = setupTempGitRepoWithWorktrees();
+      writePermissionsFile(main, { [secondary]: "readwrite" });
+      const result = runCheck(
+        { tool_name: "MultiEdit", tool_input: { file_path: `${secondary}/file.txt` } },
+        "pre",
+        main
+      );
+      assert.equal(result.exitCode, 0);
+    });
+
+    it("blocks when permissions file is corrupted JSON (no fail-open)", () => {
+      const { main, secondary } = setupTempGitRepoWithWorktrees();
+      mkdirSync(`${main}/.claude`, { recursive: true });
+      writeFileSync(`${main}/.claude/.worktree-monitor-permissions`, "NOT VALID JSON{{{");
+      const result = runCheck(
+        { tool_name: "Write", tool_input: { file_path: `${secondary}/file.txt` } },
+        "pre",
+        main
+      );
+      // Corrupted file → PERMISSION is empty → falls through to block (no permission)
+      assert.equal(result.exitCode, 2);
+      assert.ok(result.stdout.includes('"decision":"block"'));
+    });
+
     it("warns but allows in post mode (no permission)", () => {
       const { main, secondary } = setupTempGitRepoWithWorktrees();
       const result = runCheck(
