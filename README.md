@@ -160,12 +160,23 @@ Sélectionne le worktree actif quand plusieurs existent. Sauvegarde le choix dan
 
 Configure interactivement les widgets de la status line. Propose des presets avec preview ASCII, ou une sélection widget par widget. Met à jour la clé `widgets` dans `~/.claude/worktree-monitor.json`.
 
+## CI/CD
+
+- **Tests** — Exécutés automatiquement sur chaque PR ciblant `main` (`pnpm test`)
+- **Release** — Utilise [release-please](https://github.com/googleapis/release-please) pour automatiser le versioning et les GitHub Releases
+
+### Fonctionnement des releases
+
+1. Les commits sur `main` suivent les [Conventional Commits](https://www.conventionalcommits.org/) (`feat:`, `fix:`, `docs:`, etc.)
+2. release-please ouvre automatiquement une PR de release avec le bump de version et le changelog
+3. Au merge de cette PR → tag `v*` et GitHub Release créés automatiquement
+
 ## Développement
 
 ```bash
 pnpm install
 pnpm build    # Bundle TypeScript → dist/index.js
-pnpm test     # 29 tests (node:test + tsx)
+pnpm test     # 57 tests (node:test + tsx)
 ```
 
 ## Licence
