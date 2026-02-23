@@ -8,10 +8,16 @@ const CHECK_SH = `${PLUGIN_ROOT}/hooks/check.sh`;
 
 // For out-of-worktree tests, we need a CWD that IS a git repo so the
 // fallback "git rev-parse --show-toplevel" works. We create a temp git repo.
+//
+// IMPORTANT: We use a custom TMPDIR outside /tmp because check.sh has an
+// allowlist that auto-accepts /tmp/* paths. On Linux, mktemp defaults to /tmp
+// which would bypass all cross-worktree checks and make tests pass incorrectly.
 const tempDirs: Array<string> = [];
+const TEST_TMPDIR = `${PLUGIN_ROOT}/.test-tmp`;
+mkdirSync(TEST_TMPDIR, { recursive: true });
 
 function setupTempGitRepo(): string {
-  const dir = execSync("mktemp -d", { encoding: "utf-8" }).trim();
+  const dir = execSync(`mktemp -d "${TEST_TMPDIR}/repo.XXXXXX"`, { encoding: "utf-8" }).trim();
   execSync("git init", { cwd: dir, stdio: "pipe" });
   execSync("git commit --allow-empty -m init", { cwd: dir, stdio: "pipe" });
   tempDirs.push(dir);
@@ -20,7 +26,7 @@ function setupTempGitRepo(): string {
 
 function setupTempGitRepoWithWorktrees(): { main: string; secondary: string } {
   const mainRaw = setupTempGitRepo();
-  const secondaryRaw = execSync("mktemp -d", { encoding: "utf-8" }).trim();
+  const secondaryRaw = execSync(`mktemp -d "${TEST_TMPDIR}/wt.XXXXXX"`, { encoding: "utf-8" }).trim();
   // Remove the dir so git worktree add can create it
   rmSync(secondaryRaw, { recursive: true, force: true });
   execSync(`git worktree add "${secondaryRaw}" -b test-branch`, { cwd: mainRaw, stdio: "pipe" });
@@ -42,6 +48,7 @@ after(() => {
   for (const dir of tempDirs) {
     rmSync(dir, { recursive: true, force: true });
   }
+  rmSync(TEST_TMPDIR, { recursive: true, force: true });
 });
 
 function runCheck(input: object, mode = "pre", cwd?: string): { stdout: string; exitCode: number } {
