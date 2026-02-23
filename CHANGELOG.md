@@ -1,5 +1,9 @@
 # Changelog
 
+## 1.4.1 (2026-02-23)
+
+**Full Changelog**: https://github.com/lsagetlethias/claude-worktree-monitor-plugin/compare/v1.4.0...v1.4.1
+
 ## [1.4.0](https://github.com/lsagetlethias/claude-worktree-monitor-plugin/compare/claude-worktree-monitor-plugin-v1.3.0...claude-worktree-monitor-plugin-v1.4.0) (2026-02-23)
 
 

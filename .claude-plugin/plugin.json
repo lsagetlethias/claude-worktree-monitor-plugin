@@ -1,6 +1,6 @@
 {
   "name": "worktree-monitor",
-  "version": "1.4.0",
+  "version": "1.4.1",
   "description": "Git worktree monitor — status line, protection hooks, and skills for multi-worktree Claude Code sessions",
   "author": {
     "name": "lsagetlethias"
