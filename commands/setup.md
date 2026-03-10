@@ -73,10 +73,18 @@ Lire `~/.claude/settings.json` et mettre à jour :
 ```json
 "statusLine": {
   "type": "command",
-  "command": "node $PLUGIN_PATH/dist/index.js"
+  "command": "bash -c 'node ~/.claude/plugins/cache/worktree-monitor/worktree-monitor/*/dist/index.js'"
 }
 ```
-(Remplacer `$PLUGIN_PATH` par le chemin absolu réel déterminé à l'étape 1)
+Le glob `*` résout automatiquement vers la version installée, ce qui évite de casser le chemin lors des mises à jour du plugin.
+
+**Cas spécial — installation locale** : si le plugin est installé localement (étape 1, option 1), utiliser le chemin direct à la place :
+```json
+"statusLine": {
+  "type": "command",
+  "command": "node ~/.claude/plugins/local/worktree-monitor/dist/index.js"
+}
+```
 
 **hooks** — Les hooks PreToolUse et PostToolUse sont désormais déclarés dans `hooks.json` du plugin (activés automatiquement). Pour les désactiver, l'utilisateur peut retirer le plugin des `enabledPlugins` ou ajuster `~/.claude/worktree-monitor.json`.
 
